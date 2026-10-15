@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Funil Gamificado Laravel 13 | SENAI Dev</title>
+  <meta name="description" content="Trilha de aprendizado em funil gamificado de Laravel 13 (Dashboard de Livros) para a formação Dev do SENAI.">
+  
+  <link rel="icon" type="image/x-icon" href="https://icons.iconarchive.com/icons/icons-land/vista-hardware-devices/256/Computer-icon.png">
+
+  <!-- Fontes Google Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              senai: '#005aa9',
+              red: '#e11d48',
+              laravel: '#f43f5e',
+              laravelDark: '#be123c',
+              rose: '#f43f5e'
+            },
+            dark: {
+              950: '#060913',
+              900: '#0b1326',
+              850: '#0f1a34',
+              800: '#162344',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Confetti library -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <!-- Fallback de dados para execução local/offline -->
+  <script src="data/database.fallback.js"></script>
+  <!-- Estilos customizados e tratamento avançado de scrollbars -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-[#060913] text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-rose-500 selection:text-white">
+  <div id="app" v-cloak class="flex flex-col min-h-screen">
+    
+    <!-- ==========================================
+         1. HEADER ULTRA-COMPACTO (MOBILE-FIRST)
+         ========================================== -->
+    <header class="sticky top-0 z-50 backdrop-blur-md bg-[#090e1a]/95 border-b border-slate-800/80 px-2.5 sm:px-4 py-2">
+      <div class="max-w-7xl mx-auto flex items-center justify-between gap-2">
+        
+        <!-- Identidade Visual Compacta -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <span class="bg-rose-600 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded tracking-wider uppercase shadow-sm">
+            SENAI
+          </span>
+          <span class="bg-rose-500/15 text-rose-400 border border-rose-500/30 text-[10px] font-bold px-1.5 py-0.5 rounded">
+            Laravel 13
+          </span>
+          <span class="bg-slate-800 text-slate-300 border border-slate-700 text-[10px] font-semibold px-1.5 py-0.5 rounded hidden xs:inline">
+            MVC & Eloquent
+          </span>
+          <span class="hidden sm:inline text-xs font-bold text-slate-200 ml-1">
+            Dashboard de Livros
+          </span>
+        </div>
+
+        <!-- Gamificação no Topo (XP, Rank, Ações) -->
+        <div class="flex items-center gap-1.5 sm:gap-3" v-if="!loading">
+          
+          <!-- Patente Compacta -->
+          <div class="flex items-center gap-1 bg-slate-900/90 border border-slate-800 px-2 py-0.5 rounded-full text-[11px] font-medium text-slate-200">
+            <span>{{ currentRank.badge }}</span>
+            <span class="hidden md:inline">{{ currentRank.title }}</span>
+          </div>
+
+          <!-- Pílula de XP -->
+          <div class="flex items-center gap-1 bg-slate-900/90 border border-slate-800 px-2 py-0.5 rounded-full text-[11px] font-bold text-rose-400" title="XP acumulado / Total">
+            <span>⚡ {{ totalEarnedXp }}</span>
+            <span class="text-slate-500 text-[10px]">/ {{ course.totalXp }}</span>
+          </div>
+
+          <!-- Ações Rápidas (Ícones) -->
+          <div class="flex items-center gap-1">
+            <button 
+              @click="toggleSound" 
+              class="w-7 h-7 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-xs flex items-center justify-center text-slate-300 transition-colors"
+              :title="soundEnabled ? 'Silenciar som' : 'Ativar som'"
+            >
+              {{ soundEnabled ? '🔊' : '🔇' }}
+            </button>
+
+            <button 
+              @click="showBadgesModal = true" 
+              class="w-7 h-7 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-xs flex items-center justify-center text-amber-400 transition-colors relative"
+              :title="`Ver medalhas (${unlockedBadges.length}/${lessons.length})`"
+            >
+              🏆
+              <span v-if="unlockedBadges.length > 0" class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            </button>
+
+            <button 
+              @click="showResetModal = true" 
+              class="w-7 h-7 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-xs flex items-center justify-center text-slate-400 hover:text-rose-400 transition-colors"
+              title="Reiniciar progresso"
+            >
+              🔄
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ==========================================
+         2. BARRA DE STATUS & FUNIL STEPPER (01 a 18)
+         ========================================== -->
+    <section class="bg-[#0b1326] border-b border-slate-800/80" v-if="!loading && lessons.length">
+      <div class="max-w-7xl mx-auto">
+        
+        <!-- Linha de Resumo e Navegação Rápida -->
+        <div class="flex items-center justify-between px-3 py-1.5 text-[11px] font-medium text-slate-400 border-b border-slate-800/40">
+          <div class="flex items-center gap-2">
+            <span class="text-rose-400 font-bold">Aula {{ currentLessonIndex + 1 }} de {{ lessons.length }}</span>
+            <span class="text-slate-600">•</span>
+            <span>{{ progressPercentage }}% concluído</span>
+          </div>
+
+          <!-- Botões Rápidos de Navegação Entre Aulas -->
+          <div class="flex items-center gap-1">
+            <button 
+              @click="prevLessonNav" 
+              :disabled="currentLessonIndex === 0"
+              class="px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 text-[10px] font-semibold transition-colors"
+            >
+              ◀ Ant.
+            </button>
+            <button 
+              @click="nextLessonNav" 
+              :disabled="currentLessonIndex >= unlockedMaxIndex"
+              class="px-2 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 text-[10px] font-semibold transition-colors"
+            >
+              Próx. ▶
+            </button>
+          </div>
+        </div>
+
+        <!-- Trilho Horizontal do Stepper -->
+        <div class="overflow-x-auto no-scrollbar py-2 px-3 flex items-center gap-1.5 sm:gap-2">
+          <template v-for="(lesson, idx) in lessons" :key="lesson.id">
+            
+            <!-- Nó do Passo -->
+            <button 
+              :id="`step-node-${idx}`"
+              @click="goToLesson(idx)"
+              class="h-7 px-2 sm:px-2.5 shrink-0 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all duration-200 border"
+              :class="{
+                'step-node-active': idx === currentLessonIndex,
+                'step-node-completed': completedLessons.includes(lesson.id) && idx !== currentLessonIndex,
+                'bg-slate-800/80 border-slate-700 text-slate-300 hover:border-rose-400': idx <= unlockedMaxIndex && !completedLessons.includes(lesson.id) && idx !== currentLessonIndex,
+                'bg-slate-900/40 border-slate-800/50 text-slate-600 opacity-40 cursor-not-allowed': idx > unlockedMaxIndex
+              }"
+              :title="idx > unlockedMaxIndex ? `Aula ${idx + 1} bloqueada` : lesson.title"
+            >
+              <span v-if="completedLessons.includes(lesson.id) && idx !== currentLessonIndex" class="text-rose-400">✓</span>
+              <span v-else-if="idx > unlockedMaxIndex" class="text-[10px]">🔒</span>
+              <span v-else>{{ (idx + 1) < 10 ? '0' + (idx + 1) : (idx + 1) }}</span>
+              <span class="hidden md:inline text-[10px] font-medium opacity-90 truncate max-w-[100px]">{{ lesson.category }}</span>
+            </button>
+
+            <!-- Conector entre os nós -->
+            <div 
+              v-if="idx < lessons.length - 1" 
+              class="w-2 sm:w-4 h-0.5 shrink-0 bg-slate-800 rounded"
+              :class="{ 'step-connector-active': completedLessons.includes(lesson.id) }"
+            ></div>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         3. ÁREA PRINCIPAL (DESIGN MOBILE-FIRST)
+         ========================================== -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-2.5 sm:p-4 md:p-6" v-if="!loading && currentLesson">
+      
+      <!-- Grid Responsivo: Stack vertical no Mobile, 2 colunas no Desktop (lg:) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 lg:gap-6 items-start">
+        
+        <!-- COLUNA DO VÍDEO (Mobile: No topo; Desktop: Coluna 7/12) -->
+        <div class="lg:col-span-7 space-y-2.5">
+          
+          <!-- Player 16:9 Responsivo Compacto -->
+          <div class="w-full aspect-video rounded-xl overflow-hidden bg-black border border-slate-800 shadow-xl relative">
+            <iframe 
+              :src="`https://www.youtube-nocookie.com/embed/${currentLesson.videoId}?rel=0&modestbranding=1`" 
+              title="Vídeo da Aula - Treinamento Laravel 13" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              allowfullscreen
+              class="w-full h-full border-0 block"
+            ></iframe>
+          </div>
+
+          <!-- Barra de Informações Compacta da Aula -->
+          <div class="bg-[#0b1326] border border-slate-800/80 rounded-xl p-3 space-y-2.5 shadow-sm">
+            
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div class="flex items-center gap-1.5">
+                <span class="bg-rose-500/10 text-rose-400 border border-rose-500/25 text-[10px] font-bold px-2 py-0.5 rounded">
+                  {{ currentLesson.category }}
+                </span>
+                <span class="text-[10px] text-slate-400 flex items-center gap-1">
+                  ⏱️ {{ currentLesson.duration }}
+                </span>
+              </div>
+
+              <!-- Botão para Expandir/Ocultar Resumo no Mobile -->
+              <button 
+                @click="showDetails = !showDetails"
+                class="text-[11px] font-semibold text-rose-400 bg-slate-800/80 hover:bg-slate-700 border border-slate-700 px-2 py-0.5 rounded-lg flex items-center gap-1 transition-colors"
+              >
+                <span>{{ showDetails ? 'Ocultar Resumo' : '📖 Ver Resumo' }}</span>
+                <span>{{ showDetails ? '▲' : '▼' }}</span>
+              </button>
+            </div>
+
+            <!-- Título da Aula -->
+            <h1 class="text-sm sm:text-base font-bold text-white leading-snug">
+              {{ currentLesson.title }}
+            </h1>
+
+            <!-- Detalhes Expansíveis -->
+            <div v-show="showDetails" class="pt-2 border-t border-slate-800/60 space-y-2 animate-pop-in">
+              <p class="text-xs text-slate-300 leading-relaxed">
+                {{ currentLesson.summary }}
+              </p>
+
+              <!-- Competência SENAI -->
+              <div class="bg-rose-950/20 border-l-2 border-rose-500 p-2 rounded-r-lg text-xs space-y-0.5">
+                <div class="text-[10px] font-extrabold uppercase text-rose-400 tracking-wider">
+                  🎯 Competência SENAI Desenvolvida:
+                </div>
+                <p class="text-slate-300 text-[11px] leading-relaxed">
+                  {{ currentLesson.competency }}
+                </p>
+              </div>
+
+              <div class="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                <span>Trilha: Dashboard de Livros</span>
+                <a 
+                  :href="`https://www.youtube.com/watch?v=${currentLesson.videoId}&list=PLcoYAcR89n-pe2M3ng7goeHTMwQNiUxXG`" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="text-rose-400 hover:underline flex items-center gap-0.5"
+                >
+                  Assistir no YouTube ↗
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- COLUNA DO DESAFIO GAMIFICADO (Mobile: Logo abaixo do vídeo; Desktop: Coluna 5/12) -->
+        <div class="lg:col-span-5">
+          <div class="bg-[#0b1326] border border-slate-800/90 rounded-xl p-3 sm:p-4 shadow-xl space-y-3">
+            
+            <!-- Topo do Card de Desafio -->
+            <div class="flex items-center justify-between gap-2 border-b border-slate-800/60 pb-2.5">
+              <div class="flex items-center gap-1.5">
+                <span class="text-sm">🎯</span>
+                <span class="text-xs font-bold text-rose-400 uppercase tracking-wide">
+                  Desafio de Fixação
+                </span>
+              </div>
+              <div class="bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                <span>⚡ +{{ currentLesson.xp }} XP</span>
+              </div>
+            </div>
+
+            <!-- Alerta de Status -->
+            <div 
+              class="text-xs p-2 rounded-lg flex items-center gap-2 border"
+              :class="isCurrentLessonCompleted ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/20 text-rose-200'"
+            >
+              <span class="shrink-0">{{ isCurrentLessonCompleted ? '✅' : '🔒' }}</span>
+              <span class="leading-tight">
+                {{ isCurrentLessonCompleted ? 'Etapa concluída! Você pode avançar ou treinar novamente.' : 'Responda corretamente para liberar o próximo vídeo.' }}
+              </span>
+            </div>
+
+            <!-- Pergunta -->
+            <p class="text-xs sm:text-sm font-semibold text-white leading-snug">
+              {{ currentLesson.question.text }}
+            </p>
+
+            <!-- Lista de Alternativas Compactas -->
+            <div class="space-y-1.5">
+              <button
+                v-for="(option, oIdx) in currentLesson.question.options"
+                :key="oIdx"
+                class="option-card w-full text-left p-2 sm:p-2.5 rounded-lg border border-slate-800/80 bg-slate-900/60 text-xs text-slate-200 flex items-start gap-2 cursor-pointer transition-all"
+                :class="{
+                  'selected': selectedOption === oIdx && validationState === null,
+                  'correct': validationState === 'correct' && oIdx === (currentLesson.question.correctIndex !== undefined ? currentLesson.question.correctIndex : currentLesson.question.correct),
+                  'wrong': validationState === 'wrong' && oIdx === selectedOption
+                }"
+                @click="selectOption(oIdx)"
+                :disabled="validationState === 'correct'"
+              >
+                <div class="option-badge w-5 h-5 rounded bg-slate-800 text-slate-400 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                  {{ ['A', 'B', 'C', 'D'][oIdx] }}
+                </div>
+                <span class="leading-relaxed">{{ option }}</span>
+              </button>
+            </div>
+
+            <!-- Feedback de Resposta Correta -->
+            <div v-if="validationState === 'correct'" class="bg-emerald-500/10 border border-emerald-500/30 text-emerald-200 text-xs p-2.5 rounded-lg space-y-1 animate-pop-in">
+              <div class="font-bold flex items-center gap-1.5 text-emerald-400">
+                <span>🎉 Correto! +{{ currentLesson.xp }} XP</span>
+              </div>
+              <p class="text-[11px] text-emerald-200/90 leading-relaxed">
+                {{ currentLesson.question.explanation }}
+              </p>
+            </div>
+
+            <!-- Feedback de Resposta Incorreta -->
+            <div v-if="validationState === 'wrong'" class="bg-rose-500/10 border border-rose-500/30 text-rose-200 text-xs p-2.5 rounded-lg space-y-1 animate-pop-in">
+              <div class="font-bold flex items-center gap-1.5 text-rose-400">
+                <span>❌ Ops, incorreto!</span>
+              </div>
+              <p class="text-[11px] text-rose-200/90 leading-relaxed">
+                Revise os conceitos vistos no vídeo antes de tentar novamente.
+              </p>
+            </div>
+
+            <!-- Ações do Quiz -->
+            <div class="flex items-center gap-2 pt-1">
+              
+              <!-- Validar -->
+              <button 
+                v-if="validationState !== 'correct'"
+                @click="validateAnswer"
+                :disabled="selectedOption === null"
+                class="flex-1 bg-gradient-to-r from-rose-600 to-red-600 hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-xs py-2 px-3 rounded-lg shadow-md transition-all flex items-center justify-center gap-1.5"
+              >
+                <span>Validar Resposta</span>
+              </button>
+
+              <!-- Avançar para a próxima quando correta -->
+              <button 
+                v-if="validationState === 'correct'"
+                @click="nextLesson"
+                class="flex-1 bg-gradient-to-r from-rose-600 to-red-600 hover:brightness-110 text-white font-bold text-xs py-2 px-3 rounded-lg shadow-md transition-all flex items-center justify-center gap-1.5"
+              >
+                <span v-if="currentLessonIndex < lessons.length - 1">
+                  Avançar para Aula {{ currentLessonIndex + 2 }} ➔
+                </span>
+                <span v-else>
+                  Ver Certificado 🎓
+                </span>
+              </button>
+
+              <!-- Tentar Novamente -->
+              <button 
+                v-if="validationState === 'wrong'"
+                @click="tryAgain"
+                class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs py-2 px-3 rounded-lg border border-slate-700 font-medium transition-colors"
+              >
+                Tentar
+              </button>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- ==========================================
+         4. MODAIS REFINADOS COM SCROLLBAR CUSTOMIZADA
+         ========================================== -->
+
+    <!-- Modal de Badges / Conquistas -->
+    <div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3" v-if="showBadgesModal" @click.self="showBadgesModal = false">
+      <div class="bg-[#0b1326] border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl animate-pop-in">
+        
+        <div class="flex items-center justify-between p-3.5 border-b border-slate-800">
+          <h3 class="text-sm font-bold text-white flex items-center gap-1.5">
+            <span>🏆 Conquistas Laravel 13</span>
+            <span class="text-xs text-rose-400 font-normal">({{ unlockedBadges.length }}/{{ lessons.length }})</span>
+          </h3>
+          <button @click="showBadgesModal = false" class="text-slate-400 hover:text-white text-base leading-none p-1">✕</button>
+        </div>
+
+        <div class="p-3 overflow-y-auto custom-scroll grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div 
+            v-for="lesson in lessons" 
+            :key="lesson.id"
+            class="p-2.5 rounded-xl border text-center flex flex-col items-center gap-1 transition-all"
+            :class="completedLessons.includes(lesson.id) ? 'bg-rose-500/10 border-rose-500/30' : 'bg-slate-900/30 border-slate-800/40 opacity-35 grayscale'"
+          >
+            <div class="text-2xl">{{ lesson.badge.icon }}</div>
+            <div class="text-[11px] font-bold text-white line-clamp-1">{{ lesson.badge.name }}</div>
+            <div class="text-[9px] text-slate-400 line-clamp-2">Aula {{ lesson.index }}: {{ lesson.badge.description }}</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Modal de Certificado / Graduação -->
+    <div class="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3" v-if="showCertModal" @click.self="showCertModal = false">
+      <div class="bg-[#0b1326] border-2 border-rose-500/80 rounded-2xl w-full max-w-lg p-5 text-center shadow-2xl animate-pop-in relative space-y-4">
+        <button @click="showCertModal = false" class="absolute right-3 top-3 text-slate-400 hover:text-white p-1">✕</button>
+        
+        <div class="text-4xl animate-bounce">🏆</div>
+        <h2 class="text-lg sm:text-xl font-extrabold text-rose-400 tracking-tight">
+          PARABÉNS, MESTRE EM LARAVEL 13!
+        </h2>
+        <p class="text-xs text-slate-300">
+          Você concluiu com maestria todas as <strong>18 etapas</strong> do Funil Gamificado em Laravel 13!
+        </p>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-3 gap-2 bg-slate-900/80 border border-slate-800 p-2.5 rounded-xl text-center">
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase">Aulas</div>
+            <div class="text-xs sm:text-sm font-bold text-white">18 / 18</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase">XP Total</div>
+            <div class="text-xs sm:text-sm font-bold text-rose-400">{{ totalEarnedXp }} XP</div>
+          </div>
+          <div>
+            <div class="text-[10px] text-slate-400 uppercase">Patente</div>
+            <div class="text-xs sm:text-sm font-bold text-amber-400">{{ currentRank.badge }} {{ currentRank.title }}</div>
+          </div>
+        </div>
+
+        <div class="space-y-1 text-left">
+          <label class="text-[10px] text-slate-400">Nome para o certificado:</label>
+          <input 
+            type="text" 
+            v-model="studentName" 
+            class="w-full bg-slate-900 border border-slate-700 text-white text-xs px-3 py-1.5 rounded-lg text-center font-semibold focus:outline-none focus:border-rose-400"
+          />
+        </div>
+
+        <div class="flex items-center justify-center gap-2 pt-2">
+          <button @click="triggerConfetti(true)" class="bg-gradient-to-r from-rose-600 to-red-600 hover:brightness-110 text-white text-xs font-bold py-2 px-3.5 rounded-lg shadow">
+            🎉 Comemorar
+          </button>
+          <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-medium py-2 px-3.5 rounded-lg">
+            🖨️ Imprimir
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Confirmação de Reset -->
+    <div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3" v-if="showResetModal" @click.self="showResetModal = false">
+      <div class="bg-[#0b1326] border border-slate-800 rounded-xl p-4 w-full max-w-xs text-center space-y-3 animate-pop-in">
+        <div class="text-2xl">⚠️</div>
+        <h3 class="text-sm font-bold text-white">Zerar Progresso?</h3>
+        <p class="text-xs text-slate-400">
+          Tem certeza de que deseja reiniciar seu progresso, XP e medalhas de Laravel 13?
+        </p>
+        <div class="flex items-center justify-center gap-2 pt-1">
+          <button @click="showResetModal = false" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-1.5 px-3 rounded-lg">
+            Cancelar
+          </button>
+          <button @click="resetAllProgress" class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg">
+            Sim, Zerar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notificação Toast -->
+    <div v-if="toastMessage" class="fixed bottom-3 right-3 z-50 bg-slate-900 border border-rose-400/80 text-white text-xs px-3 py-2 rounded-xl shadow-2xl flex items-center gap-2 animate-pop-in">
+      <span>{{ toastMessage }}</span>
+    </div>
+
+    <!-- Rodapé Ultra-Compacto -->
+    <footer class="mt-auto border-t border-slate-800/80 py-2 px-3 text-center text-[10px] text-slate-500 bg-[#060913]">
+      SENAI Dev • Treinamento Laravel 13 (Book Library) • Trilha Gamificada 01 ao 18
+    </footer>
+
+  </div>
+
+  <!-- Script da Aplicação Vue 3 -->
+  <script src="js/app.js"></script>
+</body>
+</html>
